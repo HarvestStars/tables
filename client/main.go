@@ -13,13 +13,13 @@ import (
 // NewApp new application
 func NewApp() *cli.App {
 	app := &cli.App{
-		Commands: []*cli.Command{
+		Commands: []cli.Command{
 			{
 				Name:  "initdb",
 				Usage: "init database",
 				Action: func(c *cli.Context) error {
 					host := c.Args().First()
-					if err := gredis.Setup(host, ""); err != nil {
+					if err := gredis.Setup(host, "123456"); err != nil {
 						fmt.Println("redis error with ", host)
 						return err
 					}
@@ -48,9 +48,16 @@ func NewApp() *cli.App {
 						shortAddr := addrs[index+1]
 						longKey := "slot_" + strconv.Itoa(index) + "_long"
 						shortKey := "slot_" + strconv.Itoa(index) + "_short"
-
-						gredis.Set(longKey, longAddr, 0)
-						gredis.Set(shortKey, shortAddr, 0)
+						fmt.Printf("set %s %s \n", longKey, longAddr)
+						fmt.Printf("set %s %s \n", shortKey, shortAddr)
+						err = gredis.Set(longKey, longAddr, 0)
+						if err != nil {
+							fmt.Printf("longKey写入错误, %s \n", err)
+						}
+						err = gredis.Set(shortKey, shortAddr, 0)
+						if err != nil {
+							fmt.Printf("shortKey写入错误, %s \n", err)
+						}
 					}
 					return nil
 				},
@@ -60,7 +67,7 @@ func NewApp() *cli.App {
 				Usage: "init database",
 				Action: func(c *cli.Context) error {
 					host := c.Args().First()
-					if err := gredis.Setup(host, ""); err != nil {
+					if err := gredis.Setup(host, "123456"); err != nil {
 						fmt.Println("redis error with ", host)
 						return err
 					}

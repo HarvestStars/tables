@@ -117,16 +117,6 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 		return
 	}
 
-	// mempool中获取两个地址的txs
-	// longMemPootTxs, shortMemPoolTxs, errMemPool := getLongShortMemPoolTxs(longAddr, shortAddr)
-	// if errMemPool != nil {
-	// 	logging.GetLogger().Error(errMemPool)
-	// 	return
-	// }
-
-	// longTxs = append(longTxs, longMemPootTxs...)
-	// shortTxs = append(shortTxs, shortMemPoolTxs...)
-
 	txs := longTxs
 	if len(txs) == 0 {
 		txs = shortTxs
@@ -148,6 +138,7 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 		Addr:    shortAddr,
 		Balance: 0,
 	}
+
 	for _, tx := range txs {
 		if tx.Height < beg || tx.Height > end {
 			continue
@@ -160,6 +151,14 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 
 		DecodeRawTransaction(raw, long, short)
 	}
+
+	// mempool中获取两个地址的txs
+	errMemPool := GetLongShortMemPoolTxs(long, short)
+	if errMemPool != nil {
+		logging.GetLogger().Error(errMemPool)
+		return
+	}
+
 	logging.GetLogger().Info("Last info: ", *long, *short)
 	//write to redis
 	//order_50:{"total":2000000,"long":{"addr":"3FbigTuPm8xg8NErwKFPvFMUh1to1vhhGf", "amout":1000000},"short":"3FbigTuPm8xg8NErwKFPvFMUh1to1vhhGf", "amout":1000000}}
@@ -173,7 +172,8 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	gredis.Set(key, string(data), 0)
 }
 
-func getLongShortMemPoolTxs(longAddr string, shortAddr string) ([]*electrum.Transaction, []*electrum.Transaction, error) {
+// GetLongShortMemPoolTxs 从全节点的交易池获取内存交易
+func GetLongShortMemPoolTxs(long *AddressBalance, short *AddressBalance) error {
 	type lavaReqBody struct {
 		JSONRPC string        `json:"jsonrpc"`
 		Method  string        `json:"method"`
@@ -181,6 +181,12 @@ func getLongShortMemPoolTxs(longAddr string, shortAddr string) ([]*electrum.Tran
 		ID      int32         `json:"id"`
 	}
 
+	// 获取mempool中所有的tx的hash
+	type rawResult struct {
+		Result []interface{} `json:"result"`
+		Error  string        `json:"error"`
+		ID     int           `json:"id"`
+	}
 	reqBody := lavaReqBody{JSONRPC: "1.0", Method: "getrawmempool", Params: []interface{}{}, ID: 1}
 	reqByte, _ := json.Marshal(reqBody)
 	fmt.Println(string(reqByte))
@@ -188,31 +194,55 @@ func getLongShortMemPoolTxs(longAddr string, shortAddr string) ([]*electrum.Tran
 		strings.NewReader(string(reqByte)))
 	if err != nil {
 		log.Println(err)
-		return nil, nil, err
+		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 	resp, err := lavadClient.Do(req)
-
+	fmt.Println(err)
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println(err)
-		return nil, nil, err
+		return err
 	}
 
-	type rawTx map[string]interface{}
+	txHashSet := &rawResult{}
+	json.Unmarshal(body, txHashSet)
 
-	type rawResult struct {
-		Result []string `json:"result"`
-		Error  string   `json:"error"`
-		ID     int      `json:"id"`
+	// 根据hash逐条获取tx
+	// 同时对tx进行分析
+	type txResult struct {
+		Result string `json:"result"`
+		Error  string `json:"error"`
+		ID     int    `json:"id"`
 	}
-	result := &rawResult{}
+	rawTx := &txResult{}
+	for _, hash := range txHashSet.Result {
+		reqBody = lavaReqBody{JSONRPC: "1.0", Method: "getrawtransaction", Params: []interface{}{hash}, ID: 1}
+		reqByte, _ := json.Marshal(reqBody)
+		fmt.Println(string(reqByte))
+		req, err := http.NewRequest("POST", setting.LavadBaseSetting.Host,
+			strings.NewReader(string(reqByte)))
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+		resp, err = lavadClient.Do(req)
+		body, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+		json.Unmarshal(body, rawTx)
 
-	json.Unmarshal(body, result)
-
-	return nil, nil, nil
+		DecodeRawTransaction(rawTx.Result, long, short)
+	}
+	return nil
 }
 
 type tableOrder struct {

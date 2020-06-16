@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"net/http"
 	"testing"
+
+	"github.com/HarvestStars/tables/setting"
 )
 
 func TestAddr2ScriptHash(t *testing.T) {
@@ -29,5 +33,28 @@ func TestDecodeRawTransaction(t *testing.T) {
 	}
 	if long.Balance != 0 || short.Balance != 936552632747 {
 		t.Error("transaction decode error")
+	}
+}
+
+func TestGetLongShortMemPoolTxs(t *testing.T) {
+	setting.Setup()
+	lavadClient = &http.Client{}
+	long := AddressBalance{
+		Addr:    "3CWiPH5PE3MqP3Mz2WxNMiqyJqCZmLxUqp",
+		Balance: 100,
+	}
+
+	short := AddressBalance{
+		Addr:    "2N44vT21QqVsBapzXheaEyfqEXBQjadAag9",
+		Balance: 100,
+	}
+
+	err := GetLongShortMemPoolTxs(&long, &short)
+	if err != nil {
+		t.Error("func error.")
+	}
+	fmt.Print(long.Balance)
+	if long.Balance == 100 {
+		t.Error("计算错误")
 	}
 }
