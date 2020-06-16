@@ -29,6 +29,7 @@ var slot int
 var lavadClient *http.Client
 var lavadIP string
 var lavadPort string
+var txsInElectrum map[string]int //历史记录中的hash
 
 const (
 	signalAddr = "3EjxUF2knRQE3D6mXzDC4PoEnJX8gpZi2W"
@@ -111,6 +112,7 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 		logging.GetLogger().Error(err)
 		return
 	}
+
 	shortTxs, err := node.BlockchainAddressListUnspent(Addr2ScriptHash(shortAddr))
 	if err != nil {
 		logging.GetLogger().Error(err)
@@ -126,8 +128,8 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 				if v.Hash == tx.Hash {
 					continue
 				}
-				txs = append(txs, v)
 			}
+			txs = append(txs, v)
 		}
 	}
 	long := &AddressBalance{
@@ -140,6 +142,7 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	}
 
 	for _, tx := range txs {
+		txsInElectrum[tx.Hash] = 1
 		if tx.Height < beg || tx.Height > end {
 			continue
 		}
@@ -153,9 +156,9 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	}
 
 	// mempool中获取两个地址的txs
-	errMemPool := GetLongShortMemPoolTxs(long, short)
-	if errMemPool != nil {
-		logging.GetLogger().Error(errMemPool)
+	err = GetLongShortMemPoolTxs(long, short)
+	if err != nil {
+		logging.GetLogger().Error(err)
 		return
 	}
 
@@ -222,25 +225,29 @@ func GetLongShortMemPoolTxs(long *AddressBalance, short *AddressBalance) error {
 	}
 	rawTx := &txResult{}
 	for _, hash := range txHashSet.Result {
-		reqBody = lavaReqBody{JSONRPC: "1.0", Method: "getrawtransaction", Params: []interface{}{hash}, ID: 1}
-		reqByte, _ := json.Marshal(reqBody)
-		fmt.Println(string(reqByte))
-		req, err := http.NewRequest("POST", setting.LavadBaseSetting.Host,
-			strings.NewReader(string(reqByte)))
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-		resp, err = lavadClient.Do(req)
-		body, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-		json.Unmarshal(body, rawTx)
+		// 查重
+		// 如果mempool中的元素不在在Electrum的结果中，则累加该交易
+		if txsInElectrum[hash.(string)] != 1 {
+			reqBody = lavaReqBody{JSONRPC: "1.0", Method: "getrawtransaction", Params: []interface{}{hash}, ID: 1}
+			reqByte, _ := json.Marshal(reqBody)
+			fmt.Println(string(reqByte))
+			req, err := http.NewRequest("POST", setting.LavadBaseSetting.Host,
+				strings.NewReader(string(reqByte)))
+			if err != nil {
+				log.Println(err)
+				return err
+			}
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+			resp, err = lavadClient.Do(req)
+			body, err = ioutil.ReadAll(resp.Body)
+			if err != nil {
+				log.Println(err)
+				return err
+			}
+			json.Unmarshal(body, rawTx)
 
-		DecodeRawTransaction(rawTx.Result, long, short)
+			DecodeRawTransaction(rawTx.Result, long, short)
+		}
 	}
 	return nil
 }

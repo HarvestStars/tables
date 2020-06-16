@@ -41,20 +41,21 @@ func TestGetLongShortMemPoolTxs(t *testing.T) {
 	lavadClient = &http.Client{}
 	long := AddressBalance{
 		Addr:    "3CWiPH5PE3MqP3Mz2WxNMiqyJqCZmLxUqp",
-		Balance: 100,
+		Balance: 0,
 	}
 
 	short := AddressBalance{
 		Addr:    "2N44vT21QqVsBapzXheaEyfqEXBQjadAag9",
-		Balance: 100,
+		Balance: 0,
 	}
-
-	err := GetLongShortMemPoolTxs(&long, &short)
-	if err != nil {
-		t.Error("func error.")
-	}
-	fmt.Print(long.Balance)
-	if long.Balance == 100 {
-		t.Error("计算错误")
+	for {
+		err := GetLongShortMemPoolTxs(&long, &short)
+		if err != nil {
+			t.Error("func error.")
+		}
+		fmt.Print(long.Balance)
+		if long.Balance == 0 {
+			t.Error("计算错误")
+		}
 	}
 }
