@@ -34,8 +34,6 @@ type LavadBase struct {
 	Host string
 	// 可调配的开奖周期间隔，默认2048
 	BlocksInSlot int
-	// 涨跌地址的偏移量
-	AddrOffset int
 }
 
 // LavadBaseSetting 数据库配置

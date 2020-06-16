@@ -70,7 +70,7 @@ func run(stop chan interface{}) {
 
 func updateHeader(header *electrum.BlockchainHeader) {
 	height = int(header.BlockHeight)
-	slot = height/setting.LavadBaseSetting.BlocksInSlot + setting.LavadBaseSetting.AddrOffset
+	slot = height / setting.LavadBaseSetting.BlocksInSlot
 	//write to redis
 	info := struct {
 		Height int `json:"height"`
