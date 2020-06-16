@@ -141,6 +141,7 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 		Balance: 0,
 	}
 
+	txsInElectrum = make(map[string]int)
 	for _, tx := range txs {
 		txsInElectrum[tx.Hash] = 1
 		if tx.Height < beg || tx.Height > end {
@@ -226,8 +227,8 @@ func GetLongShortMemPoolTxs(long *AddressBalance, short *AddressBalance) error {
 	rawTx := &txResult{}
 	for _, hash := range txHashSet.Result {
 		// 查重
-		// 如果mempool中的元素不在在Electrum的结果中，则累加该交易
-		if txsInElectrum[hash.(string)] != 1 {
+		// 如果mempool中的元素不在在Electrum的结果中，则累加balance
+		if _, ok := txsInElectrum[hash.(string)]; !ok {
 			reqBody = lavaReqBody{JSONRPC: "1.0", Method: "getrawtransaction", Params: []interface{}{hash}, ID: 1}
 			reqByte, _ := json.Marshal(reqBody)
 			fmt.Println(string(reqByte))
