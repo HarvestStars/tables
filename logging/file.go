@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EasonZhao/tables/setting"
+	"github.com/HarvestStars/tables/setting"
 )
 
 var (

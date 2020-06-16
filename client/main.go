@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/EasonZhao/tables/gredis"
+	"github.com/HarvestStars/tables/gredis"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/urfave/cli"
 )

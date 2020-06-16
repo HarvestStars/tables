@@ -3,7 +3,7 @@ package gredis
 import (
 	"time"
 
-	"github.com/EasonZhao/tables/setting"
+	"github.com/HarvestStars/tables/setting"
 	"github.com/gomodule/redigo/redis"
 )
 

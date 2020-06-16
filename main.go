@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/EasonZhao/tables/gredis"
-	"github.com/EasonZhao/tables/logging"
-	"github.com/EasonZhao/tables/setting"
+	"github.com/HarvestStars/tables/gredis"
+	"github.com/HarvestStars/tables/logging"
+	"github.com/HarvestStars/tables/setting"
 )
 
 func main() {
