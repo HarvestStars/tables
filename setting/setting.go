@@ -29,6 +29,18 @@ type ElectrumBase struct {
 // ElectrumBaseSetting 数据库配置
 var ElectrumBaseSetting = &ElectrumBase{}
 
+// Lavad 配置
+type LavadBase struct {
+	Host string
+	// 可调配的开奖周期间隔，默认2048
+	BlocksInSlot int
+	// 涨跌地址的偏移量
+	AddrOffset int
+}
+
+// LavadBaseSetting 数据库配置
+var LavadBaseSetting = &LavadBase{}
+
 // Redis 配置
 type Redis struct {
 	Host     string
@@ -57,6 +69,7 @@ func Setup() {
 	mapTo("app", AppSetting)
 	mapTo("electrum", ElectrumBaseSetting)
 	mapTo("redis", RedisSetting)
+	mapTo("lavad", LavadBaseSetting)
 
 	RedisSetting.IdleTimeout = RedisSetting.IdleTimeout * time.Second
 }

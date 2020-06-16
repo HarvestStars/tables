@@ -5,22 +5,30 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/EasonZhao/tables/gredis"
 	"github.com/EasonZhao/tables/logging"
 	"github.com/EasonZhao/tables/setting"
+	"github.com/HarvestStars/go-electrum/electrum"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
-	"github.com/d4l3k/go-electrum/electrum"
 )
 
 var node *electrum.Node
 var height int
 var slot int
+var lavadClient *http.Client
+var lavadIP string
+var lavadPort string
 
 const (
 	signalAddr = "3EjxUF2knRQE3D6mXzDC4PoEnJX8gpZi2W"
@@ -62,7 +70,7 @@ func run(stop chan interface{}) {
 
 func updateHeader(header *electrum.BlockchainHeader) {
 	height = int(header.BlockHeight)
-	slot = height / 2048
+	slot = height/setting.LavadBaseSetting.BlocksInSlot + setting.LavadBaseSetting.AddrOffset
 	//write to redis
 	info := struct {
 		Height int `json:"height"`
@@ -78,8 +86,8 @@ func updateHeader(header *electrum.BlockchainHeader) {
 
 func calcLongShort() {
 	//
-	beg := slot * 2048
-	end := beg + 2048 - 1
+	beg := slot * setting.LavadBaseSetting.BlocksInSlot
+	end := beg + setting.LavadBaseSetting.BlocksInSlot - 1
 	longKey := "slot_" + strconv.Itoa(int(slot)) + "_long"
 	shortKey := "slot_" + strconv.Itoa(int(slot)) + "_short"
 
@@ -97,58 +105,6 @@ func calcLongShort() {
 	fetchInfo(longAddr, shortAddr, beg, end)
 }
 
-func fetchInfo2(signalAddr string, doubleAddr string) {
-	signalTxs, err := node.BlockchainAddressListUnspent(Addr2ScriptHash(signalAddr))
-	if err != nil {
-		logging.GetLogger().Error(err)
-		return
-	}
-	doubleTxs, err := node.BlockchainAddressListUnspent(Addr2ScriptHash(doubleAddr))
-	if err != nil {
-		logging.GetLogger().Error(err)
-		return
-	}
-	txs := signalTxs
-	if len(txs) == 0 {
-		txs = doubleTxs
-	} else {
-		for _, v := range doubleTxs {
-			for _, tx := range txs {
-				if v.Hash == tx.Hash {
-					continue
-				}
-				txs = append(txs, v)
-			}
-		}
-	}
-
-	signalInfo := &AddressBalance{
-		Addr:    signalAddr,
-		Balance: 0,
-	}
-	doubleInfo := &AddressBalance{
-		Addr:    doubleAddr,
-		Balance: 0,
-	}
-	for _, tx := range txs {
-		raw, err := node.BlockchainTransactionGet(tx.Hash)
-		if err != nil {
-			logging.GetLogger().Error(err)
-			return
-		}
-
-		DecodeRawTransaction(raw, signalInfo, doubleInfo)
-		key := "order_sd_" + strconv.Itoa(height)
-		order := tableOrder{
-			Amount: signalInfo.Balance + doubleInfo.Balance,
-			Long:   *signalInfo,
-			Short:  *doubleInfo,
-		}
-		data, _ := json.Marshal(&order)
-		gredis.Set(key, string(data), 0)
-	}
-}
-
 func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	longTxs, err := node.BlockchainAddressListUnspent(Addr2ScriptHash(longAddr))
 	if err != nil {
@@ -160,6 +116,17 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 		logging.GetLogger().Error(err)
 		return
 	}
+
+	// mempool中获取两个地址的txs
+	// longMemPootTxs, shortMemPoolTxs, errMemPool := getLongShortMemPoolTxs(longAddr, shortAddr)
+	// if errMemPool != nil {
+	// 	logging.GetLogger().Error(errMemPool)
+	// 	return
+	// }
+
+	// longTxs = append(longTxs, longMemPootTxs...)
+	// shortTxs = append(shortTxs, shortMemPoolTxs...)
+
 	txs := longTxs
 	if len(txs) == 0 {
 		txs = shortTxs
@@ -183,12 +150,12 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	}
 	for _, tx := range txs {
 		if tx.Height < beg || tx.Height > end {
-			return
+			continue
 		}
 		raw, err := node.BlockchainTransactionGet(tx.Hash)
 		if err != nil {
 			logging.GetLogger().Error(err)
-			return
+			continue
 		}
 
 		DecodeRawTransaction(raw, long, short)
@@ -206,16 +173,52 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	gredis.Set(key, string(data), 0)
 }
 
+func getLongShortMemPoolTxs(longAddr string, shortAddr string) ([]*electrum.Transaction, []*electrum.Transaction, error) {
+	type lavaReqBody struct {
+		JSONRPC string        `json:"jsonrpc"`
+		Method  string        `json:"method"`
+		Params  []interface{} `json:"params"`
+		ID      int32         `json:"id"`
+	}
+
+	reqBody := lavaReqBody{JSONRPC: "1.0", Method: "getrawmempool", Params: []interface{}{}, ID: 1}
+	reqByte, _ := json.Marshal(reqBody)
+	fmt.Println(string(reqByte))
+	req, err := http.NewRequest("POST", setting.LavadBaseSetting.Host,
+		strings.NewReader(string(reqByte)))
+	if err != nil {
+		log.Println(err)
+		return nil, nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+	resp, err := lavadClient.Do(req)
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		return nil, nil, err
+	}
+
+	type rawTx map[string]interface{}
+
+	type rawResult struct {
+		Result []string `json:"result"`
+		Error  string   `json:"error"`
+		ID     int      `json:"id"`
+	}
+	result := &rawResult{}
+
+	json.Unmarshal(body, result)
+
+	return nil, nil, nil
+}
+
 type tableOrder struct {
 	Amount int64          `json:"total"`
 	Long   AddressBalance `json:"long"`
 	Short  AddressBalance `json:"short"`
-}
-
-type tableOrderSD struct {
-	Amount int64          `json:"total"`
-	Signal AddressBalance `json:"signal"`
-	Double AddressBalance `json:"double"`
 }
 
 //Addr2ScriptHash Addr to ScriptHash
