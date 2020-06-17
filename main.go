@@ -20,6 +20,7 @@ func main() {
 	terminal := make(chan os.Signal)
 	signal.Notify(terminal, os.Interrupt, syscall.SIGTERM)
 	c := make(chan interface{})
+	logging.GetLogger().Info("version 1.0")
 	go run(c)
 	for {
 		select {

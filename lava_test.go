@@ -1,11 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
 	"testing"
-
-	"github.com/HarvestStars/tables/setting"
 )
 
 func TestAddr2ScriptHash(t *testing.T) {
@@ -17,9 +13,9 @@ func TestAddr2ScriptHash(t *testing.T) {
 }
 
 func TestDecodeRawTransaction(t *testing.T) {
-	raw := "0200000001a4369df75a0b3695c518ede6e667a30fc3912aa43fd6ed6755b52eaed51981e6000000006a47304402202bf78149df1d8d77446f66eeebe212d21dfdf8f1775cd7fdf7f5900ef7fa44940220405902c918c0619421b6cda4afe239fe8c7b83d9bc33b86c2a3837d4e678cc4301210334135cbf970741851b20cda74d26fc71ab50455bfd087b25a91c2afc621acc83feffffff034def0b7a0b0000001976a91400023145087e223d10f3af05b60c067aea75e68e88acab11e30eda00000017a9145655cb60b59a7bf4e78bf9cb0abb9521ddd11592870000000000000000226a511f03ff9701b17576a91400023145087e223d10f3af05b60c067aea75e68e88acdd920100"
+	raw := "0200000001521e6ce5c7631df51e0586a2cf7d9cd6fa98cb68b577bbef22b4fcf6f9b9ae39010000006b483045022100dc03c007859cdcc26540ffc3568c674f59453f1b927d39be71d5d8a38117168a022001daf5b51ca548a6909b7797053291b873c60bcddb2361561bd30fa81193fe20012103faf0f27e2c14b29d4b36f72448148a28c263aef1a2487d5131c9e0c47179e181feffffff0200e1f5050000000017a914d4aa6a77b97cc513073738280bbafb574b459997870c451d97090000001976a9142209ed74db5ec6d0b8a0d9fca756298d7e07cfd188acb8990100"
 	long := AddressBalance{
-		Addr:    "113dLR9a4pa1qeQtggQQ5c1j5wpVqhC1a",
+		Addr:    "3M5VKv3aacea1q89i1TMtGCKuNEy6WWjhL",
 		Balance: 0,
 	}
 	short := AddressBalance{
@@ -31,31 +27,7 @@ func TestDecodeRawTransaction(t *testing.T) {
 	if err != nil {
 		t.Error("boom")
 	}
-	if long.Balance != 0 || short.Balance != 936552632747 {
+	if long.Balance != 12 || short.Balance != 0 {
 		t.Error("transaction decode error")
-	}
-}
-
-func TestGetLongShortMemPoolTxs(t *testing.T) {
-	setting.Setup()
-	lavadClient = &http.Client{}
-	long := AddressBalance{
-		Addr:    "3CWiPH5PE3MqP3Mz2WxNMiqyJqCZmLxUqp",
-		Balance: 0,
-	}
-
-	short := AddressBalance{
-		Addr:    "2N44vT21QqVsBapzXheaEyfqEXBQjadAag9",
-		Balance: 0,
-	}
-	for {
-		err := GetLongShortMemPoolTxs(&long, &short)
-		if err != nil {
-			t.Error("func error.")
-		}
-		fmt.Print(long.Balance)
-		if long.Balance == 0 {
-			t.Error("计算错误")
-		}
 	}
 }

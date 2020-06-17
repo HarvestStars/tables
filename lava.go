@@ -5,12 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/HarvestStars/go-electrum/electrum"
@@ -144,8 +140,11 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	txsInElectrum = make(map[string]int)
 	for _, tx := range txs {
 		txsInElectrum[tx.Hash] = 1
-		if tx.Height < beg || tx.Height > end {
-			continue
+		if tx.Height != 0 {
+			// unconfirmed tx's height is 0
+			if tx.Height < beg || tx.Height > end {
+				continue
+			}
 		}
 		raw, err := node.BlockchainTransactionGet(tx.Hash)
 		if err != nil {
@@ -155,14 +154,6 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 
 		DecodeRawTransaction(raw, long, short)
 	}
-
-	// mempool中获取两个地址的txs
-	err = GetLongShortMemPoolTxs(long, short)
-	if err != nil {
-		logging.GetLogger().Error(err)
-		return
-	}
-
 	logging.GetLogger().Info("Last info: ", *long, *short)
 	//write to redis
 	//order_50:{"total":2000000,"long":{"addr":"3FbigTuPm8xg8NErwKFPvFMUh1to1vhhGf", "amout":1000000},"short":"3FbigTuPm8xg8NErwKFPvFMUh1to1vhhGf", "amout":1000000}}
@@ -174,83 +165,6 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	}
 	data, _ := json.Marshal(&order)
 	gredis.Set(key, string(data), 0)
-}
-
-// GetLongShortMemPoolTxs 从全节点的交易池获取内存交易
-func GetLongShortMemPoolTxs(long *AddressBalance, short *AddressBalance) error {
-	type lavaReqBody struct {
-		JSONRPC string        `json:"jsonrpc"`
-		Method  string        `json:"method"`
-		Params  []interface{} `json:"params"`
-		ID      int32         `json:"id"`
-	}
-
-	// 获取mempool中所有的tx的hash
-	type rawResult struct {
-		Result []interface{} `json:"result"`
-		Error  string        `json:"error"`
-		ID     int           `json:"id"`
-	}
-	reqBody := lavaReqBody{JSONRPC: "1.0", Method: "getrawmempool", Params: []interface{}{}, ID: 1}
-	reqByte, _ := json.Marshal(reqBody)
-	fmt.Println(string(reqByte))
-	req, err := http.NewRequest("POST", setting.LavadBaseSetting.Host,
-		strings.NewReader(string(reqByte)))
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	resp, err := lavadClient.Do(req)
-	fmt.Println(err)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	txHashSet := &rawResult{}
-	json.Unmarshal(body, txHashSet)
-
-	// 根据hash逐条获取tx
-	// 同时对tx进行分析
-	type txResult struct {
-		Result string `json:"result"`
-		Error  string `json:"error"`
-		ID     int    `json:"id"`
-	}
-	rawTx := &txResult{}
-	for _, hash := range txHashSet.Result {
-		// 查重
-		// 如果mempool中的元素不在在Electrum的结果中，则累加balance
-		if _, ok := txsInElectrum[hash.(string)]; !ok {
-			reqBody = lavaReqBody{JSONRPC: "1.0", Method: "getrawtransaction", Params: []interface{}{hash}, ID: 1}
-			reqByte, _ := json.Marshal(reqBody)
-			fmt.Println(string(reqByte))
-			req, err := http.NewRequest("POST", setting.LavadBaseSetting.Host,
-				strings.NewReader(string(reqByte)))
-			if err != nil {
-				log.Println(err)
-				return err
-			}
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-			resp, err = lavadClient.Do(req)
-			body, err = ioutil.ReadAll(resp.Body)
-			if err != nil {
-				log.Println(err)
-				return err
-			}
-			json.Unmarshal(body, rawTx)
-
-			DecodeRawTransaction(rawTx.Result, long, short)
-		}
-	}
-	return nil
 }
 
 type tableOrder struct {
