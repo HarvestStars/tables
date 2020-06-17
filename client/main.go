@@ -43,7 +43,7 @@ func NewApp() *cli.App {
 					//slot_index_short
 					index := 0
 					for index < count/2 {
-						index++
+						index += 2
 						longAddr := addrs[index]
 						shortAddr := addrs[index+1]
 						longKey := "slot_" + strconv.Itoa(index) + "_long"
