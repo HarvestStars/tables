@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,7 +15,6 @@ func main() {
 	setting.Setup()
 	logging.Setup()
 	gredis.Setup(setting.RedisSetting.Host, setting.RedisSetting.Password)
-	lavadClient = &http.Client{}
 	terminal := make(chan os.Signal)
 	signal.Notify(terminal, os.Interrupt, syscall.SIGTERM)
 	c := make(chan interface{})
