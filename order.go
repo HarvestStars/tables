@@ -6,6 +6,8 @@ import (
 
 	"github.com/HarvestStars/tables/gredis"
 	"github.com/HarvestStars/tables/logging"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
 )
 
 // AddressBalance comment
@@ -81,4 +83,24 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	}
 	data, _ := json.Marshal(&order)
 	gredis.Set(key, string(data), 0)
+}
+
+// DecodeAndAddBalance comment
+func DecodeAndAddBalance(raw string, long *AddressBalance, short *AddressBalance) error {
+	mtx := decodeTx(raw)
+	for _, out := range mtx.TxOut {
+		scriptClass, addrs, _, _ := txscript.ExtractPkScriptAddrs(out.PkScript, &chaincfg.MainNetParams)
+		if txscript.ScriptHashTy != scriptClass {
+			continue
+		}
+		for _, v := range addrs {
+			if v.String() == long.Addr {
+				long.Balance += out.Value
+			}
+			if v.String() == short.Addr {
+				short.Balance += out.Value
+			}
+		}
+	}
+	return nil
 }

@@ -49,7 +49,6 @@ func run(stop chan interface{}) {
 			liquidate(int(header.BlockHeight))
 		case <-t.C:
 			calcLongShort()
-
 		}
 	}
 }

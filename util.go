@@ -57,8 +57,14 @@ func Addr2ScriptHash(addr string) string {
 	return hex.EncodeToString(reverse(data))
 }
 
-// DecodeAndAddBalance comment
-func DecodeAndAddBalance(raw string, long *AddressBalance, short *AddressBalance) error {
+func reverse(s []byte) []byte {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
+	return s
+}
+
+func decodeTx(raw string) wire.MsgTx {
 	serializedTx, err := hex.DecodeString(raw)
 	if err != nil {
 		panic(err)
@@ -68,26 +74,5 @@ func DecodeAndAddBalance(raw string, long *AddressBalance, short *AddressBalance
 	if err != nil {
 		panic(err)
 	}
-	for _, out := range mtx.TxOut {
-		scriptClass, addrs, _, _ := txscript.ExtractPkScriptAddrs(out.PkScript, &chaincfg.MainNetParams)
-		if txscript.ScriptHashTy != scriptClass {
-			continue
-		}
-		for _, v := range addrs {
-			if v.String() == long.Addr {
-				long.Balance += out.Value
-			}
-			if v.String() == short.Addr {
-				short.Balance += out.Value
-			}
-		}
-	}
-	return nil
-}
-
-func reverse(s []byte) []byte {
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-		s[i], s[j] = s[j], s[i]
-	}
-	return s
+	return mtx
 }
