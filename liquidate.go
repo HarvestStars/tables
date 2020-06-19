@@ -17,7 +17,9 @@ type beneficiary struct {
 }
 
 func liquidate(height int) {
-	if height%setting.LavadBaseSetting.BlocksInSlot > 1 && slot-1 >= 0 {
+	// 判断是否已经清算完毕
+	done := gredis.Exists("finish_liquidslot_" + strconv.Itoa(slot-1))
+	if height%setting.LavadBaseSetting.BlocksInSlot > 5 && slot-1 >= 0 && !done {
 		logging.GetLogger().Info("start liquidating on slot %d", slot-1)
 		longAddr, shortAddr, beg, end := getLongShortAddr(slot - 1)
 		longTxs, err := node.BlockchainAddressListUnspent(Addr2ScriptHash(longAddr))
@@ -73,6 +75,7 @@ func liquidate(height int) {
 		beneAll := beneficiary{LongBenefi: beneficiaryLong, ShortBenefi: beneficiaryShort}
 		data, _ := json.Marshal(&beneAll)
 		gredis.Set("liquid_"+strconv.Itoa(slot-1), string(data), 0)
+		gredis.Set("finish_liquidslot_"+strconv.Itoa(slot-1), "done", 0)
 	}
 }
 
