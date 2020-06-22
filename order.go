@@ -23,8 +23,12 @@ type tableOrder struct {
 }
 
 type participate struct {
-	ParticipateLong  map[string]int64 `json:"participatelong"`
-	ParticipateShort map[string]int64 `json:"participateshort"`
+	PoolEntrySet []memPoolEntryWithHash `json:"pooltxs"`
+}
+
+type memPoolEntryWithHash struct {
+	Hash    string           `json:"txid"`
+	Account map[string]int64 `json:"account"`
 }
 
 func calcLongShort() {
@@ -70,8 +74,12 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 		Balance: 0,
 	}
 
-	poolEntryLong := make(map[string]int64)
-	poolEntryShort := make(map[string]int64)
+	// 周期变化后，重置poolEntrySet
+	if slotOld != slot {
+		poolEntrySet = make([]memPoolEntryWithHash, 0, 1000)
+		slotOld = slot
+	}
+
 	for _, tx := range txs {
 		raw, ok := rawTxsInCache(beg, end, tx.Height, tx.Hash)
 		if !ok {
@@ -80,18 +88,40 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 
 		// 新交易滚动功能，提供cache
 		// 仅缓存两个周期的txs
+		entryLong := make(map[string]int64)
+		entryShort := make(map[string]int64)
 		longAddr, shortAddr, _, _ := getLongShortAddr(slot)
-		_, _ = addOneTxInParticipates(raw, poolEntryLong, poolEntryShort, longAddr, shortAddr)
-		if gredis.Exists("participate_" + strconv.Itoa(slot-2)) {
-			gredis.Delete("participate_" + strconv.Itoa(slot-2))
+		_, _ = addOneTxInParticipates(raw, entryLong, entryShort, longAddr, shortAddr, true)
+
+		isInPoolSet := false
+		for _, entry := range poolEntrySet {
+			// 判断tx.Hash 是否已经存在poolEntrySet中
+			if entry.Hash == tx.Hash {
+				isInPoolSet = true
+			}
 		}
 
-		ParticipateSet := participate{ParticipateLong: poolEntryLong, ParticipateShort: poolEntryShort}
-		data, err := json.Marshal(ParticipateSet)
-		if err != nil {
-			logging.GetLogger().Error(err)
+		if !isInPoolSet {
+			// 更新redis和cache
+			if len(entryLong) != 0 {
+				//poolEntrySet[len(poolEntrySet)] = memPoolEntryWithHash{Hash: tx.Hash, Account: entryLong}
+				poolEntrySet = append(poolEntrySet, memPoolEntryWithHash{Hash: tx.Hash, Account: entryLong})
+			}
+			if len(entryShort) != 0 {
+				//poolEntrySet[len(poolEntrySet)] = memPoolEntryWithHash{Hash: tx.Hash, Account: entryShort}
+				poolEntrySet = append(poolEntrySet, memPoolEntryWithHash{Hash: tx.Hash, Account: entryShort})
+			}
+
+			ParticipateSet := participate{PoolEntrySet: poolEntrySet}
+			data, err := json.Marshal(ParticipateSet)
+			if err != nil {
+				logging.GetLogger().Error(err)
+			}
+			gredis.Set("participate_"+strconv.Itoa(slot), string(data), 0)
+			if gredis.Exists("participate_" + strconv.Itoa(slot-2)) {
+				gredis.Delete("participate_" + strconv.Itoa(slot-2))
+			}
 		}
-		gredis.Set("participate_"+strconv.Itoa(slot), string(data), 0)
 
 		// DecodeAndAddBalance 进行order信息累加
 		DecodeAndAddBalance(raw, long, short)

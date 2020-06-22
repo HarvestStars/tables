@@ -13,6 +13,8 @@ import (
 var node *electrum.Node
 var height int
 var slot int
+var slotOld int
+var poolEntrySet []memPoolEntryWithHash
 
 const (
 	signalAddr = "3EjxUF2knRQE3D6mXzDC4PoEnJX8gpZi2W"
@@ -37,6 +39,8 @@ func run(stop chan interface{}) {
 	d := time.Duration(time.Second * 10)
 	t := time.NewTicker(d)
 	defer t.Stop()
+	poolEntrySet = make([]memPoolEntryWithHash, 0, 1000)
+	slotOld = 0
 	for {
 		select {
 		case <-stop:

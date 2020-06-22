@@ -16,6 +16,11 @@ type beneficiary struct {
 	ShortBenefi map[string]int64 `json:"ShortBenefi"`
 }
 
+type partiInfo struct {
+	LongParticipate  map[string]int64 `json:"longparticipate"`
+	ShortParticipate map[string]int64 `json:"shortparticipate"`
+}
+
 func liquidate(height int) {
 	// 判断是否已经清算完毕
 	done := gredis.Exists("finish_liquidslot_" + strconv.Itoa(slot-1))
@@ -61,16 +66,19 @@ func liquidate(height int) {
 				continue
 			}
 			logging.GetLogger().Infof("liquidating on txid: %s", tx.Hash)
-			longAmount, shortAmount := addOneTxInParticipates(raw, participateLong, participateShort, longAddr, shortAddr)
+			longAmount, shortAmount := addOneTxInParticipates(raw, participateLong, participateShort, longAddr, shortAddr, false)
 			totalLongAmount += longAmount
 			totalShortAmount += shortAmount
 		}
+		// 序列化,将用户转账信息存入redis
+		partiAll := partiInfo{LongParticipate: participateLong, ShortParticipate: participateShort}
+		dataParti, _ := json.Marshal(&partiAll)
+		gredis.Set("liquid_participate_"+strconv.Itoa(slot-1), string(dataParti), 0)
 
 		// 最终清算，获取受益人获利详情
 		beneficiaryLong := make(map[string]int64)
 		beneficiaryShort := make(map[string]int64)
 		finnalLiquidate(totalLongAmount, totalShortAmount, participateLong, participateShort, beneficiaryLong, beneficiaryShort)
-
 		// 序列化
 		beneAll := beneficiary{LongBenefi: beneficiaryLong, ShortBenefi: beneficiaryShort}
 		data, _ := json.Marshal(&beneAll)
@@ -79,7 +87,7 @@ func liquidate(height int) {
 	}
 }
 
-func addOneTxInParticipates(rawTx string, longSet map[string]int64, shortSet map[string]int64, longAddr string, shortAddr string) (int64, int64) {
+func addOneTxInParticipates(rawTx string, longSet map[string]int64, shortSet map[string]int64, longAddr string, shortAddr string, forSubscribeFlag bool) (int64, int64) {
 	mtx := decodeTx(rawTx)
 	senderLock := false
 	var sender string
@@ -119,20 +127,31 @@ func addOneTxInParticipates(rawTx string, longSet map[string]int64, shortSet map
 			senderLock = true
 		}
 	}
-
+	longAmount = longAmount / 100000000
+	shortAmount = shortAmount / 100000000
 	// update 两方账目表
-	if _, ok := longSet[sender]; ok {
-		longSet[sender] += longAmount
-	} else {
+	if forSubscribeFlag {
 		if longAmount != 0 {
 			longSet[sender] = longAmount
 		}
-	}
-	if _, ok := shortSet[sender]; ok {
-		shortSet[sender] += shortAmount
-	} else {
+
 		if shortAmount != 0 {
 			shortSet[sender] = shortAmount
+		}
+	} else {
+		if _, ok := longSet[sender]; ok {
+			longSet[sender] += longAmount
+		} else {
+			if longAmount != 0 {
+				longSet[sender] = longAmount
+			}
+		}
+		if _, ok := shortSet[sender]; ok {
+			shortSet[sender] += shortAmount
+		} else {
+			if shortAmount != 0 {
+				shortSet[sender] = shortAmount
+			}
 		}
 	}
 	return longAmount, shortAmount
@@ -140,9 +159,9 @@ func addOneTxInParticipates(rawTx string, longSet map[string]int64, shortSet map
 
 func finnalLiquidate(longTotal int64, shortTotal int64, longPartiSet map[string]int64, shortPartiSet map[string]int64, longBenefSet map[string]int64, shortBenefSet map[string]int64) {
 	for longAddr, amount := range longPartiSet {
-		longBenefSet[longAddr] = (longTotal + shortTotal) * amount / longTotal / 100000000
+		longBenefSet[longAddr] = (longTotal + shortTotal) * amount / longTotal
 	}
 	for shorAddr, amount := range shortPartiSet {
-		shortBenefSet[shorAddr] = (longTotal + shortTotal) * amount / shortTotal / 100000000
+		shortBenefSet[shorAddr] = (longTotal + shortTotal) * amount / shortTotal
 	}
 }
