@@ -6,6 +6,7 @@ import (
 
 	"github.com/HarvestStars/tables/gredis"
 	"github.com/HarvestStars/tables/logging"
+	"github.com/HarvestStars/tables/setting"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 )
@@ -81,7 +82,7 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 	}
 
 	for _, tx := range txs {
-		raw, ok := rawTxsInCache(beg, end, tx.Height, tx.Hash)
+		raw, ok := rawTxsInCache(beg, end, slot, tx.Height, tx.Hash, setting.LavadBaseSetting.DeadLine)
 		if !ok {
 			continue
 		}

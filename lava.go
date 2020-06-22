@@ -64,10 +64,12 @@ func updateHeader(header *electrum.BlockchainHeader) {
 		Height       int `json:"height"`
 		Slot         int `json:"slot"`
 		BlocksInSlot int `json:"blocksinslot"`
+		DeadLine     int `json:"deadline"`
 	}{
 		Height:       height,
 		Slot:         slot,
 		BlocksInSlot: setting.LavadBaseSetting.BlocksInSlot,
+		DeadLine:     setting.LavadBaseSetting.DeadLine,
 	}
 	data, _ := json.Marshal(&info)
 	gredis.Set("blockchaininfo", string(data), 0)

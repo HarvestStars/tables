@@ -34,6 +34,8 @@ type LavadBase struct {
 	Host string
 	// 可调配的开奖周期间隔，默认2048
 	BlocksInSlot int
+	// 结算死区
+	DeadLine int
 }
 
 // LavadBaseSetting 数据库配置

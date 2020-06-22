@@ -61,7 +61,7 @@ func liquidate(height int) {
 		totalLongAmount := int64(0)
 		totalShortAmount := int64(0)
 		for _, tx := range txs {
-			raw, ok := rawTxsInCache(beg, end, tx.Height, tx.Hash)
+			raw, ok := rawTxsInCache(beg, end, slot-1, tx.Height, tx.Hash, setting.LavadBaseSetting.DeadLine)
 			if !ok {
 				continue
 			}
