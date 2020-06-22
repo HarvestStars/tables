@@ -37,7 +37,6 @@ func run(stop chan interface{}) {
 	d := time.Duration(time.Second * 10)
 	t := time.NewTicker(d)
 	defer t.Stop()
-
 	for {
 		select {
 		case <-stop:

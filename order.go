@@ -22,6 +22,11 @@ type tableOrder struct {
 	Short  AddressBalance `json:"short"`
 }
 
+type participate struct {
+	ParticipateLong  map[string]int64 `json:"participatelong"`
+	ParticipateShort map[string]int64 `json:"participateshort"`
+}
+
 func calcLongShort() {
 	logger := logging.GetLogger()
 	logger.Infof("calc long and short, slot index: %d", slot)
@@ -65,11 +70,30 @@ func fetchInfo(longAddr string, shortAddr string, beg int, end int) {
 		Balance: 0,
 	}
 
+	poolEntryLong := make(map[string]int64)
+	poolEntryShort := make(map[string]int64)
 	for _, tx := range txs {
 		raw, ok := rawTxsInCache(beg, end, tx.Height, tx.Hash)
 		if !ok {
 			continue
 		}
+
+		// 新交易滚动功能，提供cache
+		// 仅缓存两个周期的txs
+		longAddr, shortAddr, _, _ := getLongShortAddr(slot)
+		_, _ = addOneTxInParticipates(raw, poolEntryLong, poolEntryShort, longAddr, shortAddr)
+		if gredis.Exists("participate_" + strconv.Itoa(slot-2)) {
+			gredis.Delete("participate_" + strconv.Itoa(slot-2))
+		}
+
+		ParticipateSet := participate{ParticipateLong: poolEntryLong, ParticipateShort: poolEntryShort}
+		data, err := json.Marshal(ParticipateSet)
+		if err != nil {
+			logging.GetLogger().Error(err)
+		}
+		gredis.Set("participate_"+strconv.Itoa(slot), string(data), 0)
+
+		// DecodeAndAddBalance 进行order信息累加
 		DecodeAndAddBalance(raw, long, short)
 	}
 	logging.GetLogger().Info("Last info: ", *long, *short)
