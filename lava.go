@@ -61,11 +61,13 @@ func updateHeader(header *electrum.BlockchainHeader) {
 	slot = height / setting.LavadBaseSetting.BlocksInSlot
 	//write to redis
 	info := struct {
-		Height int `json:"height"`
-		Slot   int `json:"slot"`
+		Height       int `json:"height"`
+		Slot         int `json:"slot"`
+		BlocksInSlot int `json:"blocksinslot"`
 	}{
-		Height: height,
-		Slot:   slot,
+		Height:       height,
+		Slot:         slot,
+		BlocksInSlot: setting.LavadBaseSetting.BlocksInSlot,
 	}
 	data, _ := json.Marshal(&info)
 	gredis.Set("blockchaininfo", string(data), 0)
