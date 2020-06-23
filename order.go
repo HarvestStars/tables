@@ -150,10 +150,12 @@ func DecodeAndAddBalance(raw string, long *AddressBalance, short *AddressBalance
 		}
 		for _, v := range addrs {
 			if v.String() == long.Addr {
-				long.Balance += out.Value
+				addValue := out.Value / 100000000
+				long.Balance += addValue
 			}
 			if v.String() == short.Addr {
-				short.Balance += out.Value
+				addValue := out.Value / 100000000
+				short.Balance += addValue
 			}
 		}
 	}
